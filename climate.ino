@@ -1,7 +1,20 @@
+#include <Adafruit_NeoPixel.h>
+
 #include <Servo.h>
 #include <Wire.h>
 #include <DHT11.h>
 #include <LiquidCrystal_I2C.h>
+
+// cole's lights 
+#ifdef __AVR__
+ #include <avr/power.h> // Required for 16 MHz Adafruit Trinket
+#endif
+
+#define LED_PIN   10
+#define LED_COUNT 6
+
+// Declare our NeoPixel strip object:
+Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_RGBW + NEO_KHZ800);
 
 int button = 4;
 int dial = A5;
@@ -18,6 +31,7 @@ int fanBbrake = 8;
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 DHT11 dht11(2);
 Servo motor1;
+Servo motor2;
 
 float temperature = 0;
 float humidity = 0;
@@ -134,7 +148,38 @@ void fanset(bool act){
 }
 
 void windowset(bool act){
-  return;
+  if (act){
+    motor1.attach(6);
+    motor2.attach(7);
+    motor1.write(0);
+    motor2.write(0);
+    delay(200);
+    motor1.detach();
+    motor2.detach();
+  } else {
+    motor1.attach(6);
+    motor2.attach(7);
+    motor1.write(179);
+    motor2.write(179);
+    delay(200);
+    motor1.detach();
+    motor2.detach();
+  }
+}
+
+void lights(){
+  strip.clear();
+
+  for(int i=0; i<LED_COUNT; i++) {
+    strip.setPixelColor(i, strip.Color(0, 0, 0, 255));
+    strip.show();
+  }
+
+  int analog_val_A2 = analogRead(A2);
+  
+  strip.setBrightness((analog_val_A2)/50);
+  strip.show();
+  Serial.println(analog_val_A2);
 }
 
 // system autorun functions
@@ -149,15 +194,13 @@ void setup() {
   pinMode(fanAdir, OUTPUT);
   pinMode(fanAbrake, OUTPUT);
   pinMode(fanApower, OUTPUT);
+
+  strip.begin();           
 }
 
 void loop() {
-  motor1.attach(6);
-  motor1.write(179);
-  motor1.detach();
   bool climatechanged = false;
     if (tick%10 == 0){climatechanged = checkifclimatechanged();}
-  
   bool buttonpressed = checkifbuttonpressed();
 
   if (buttonpressed){paginate();} // cycles through all pages
@@ -185,8 +228,14 @@ void loop() {
   } else {
     fanset(false);
   }
+
+  if (temperature > desiredtemp + 5){
+    windowset(true);
+  } else {
+    windowset(false);
+  }
   
-    
+  lights();
 
   tick++;
   if (tick==10){tick=0;}
